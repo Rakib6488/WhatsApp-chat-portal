@@ -36,6 +36,7 @@ class StableClient extends Client {
 
 const client = new StableClient({
   authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
+  userAgent: false,
   puppeteer: {
     executablePath: puppeteer.executablePath(),
     headless: true,
