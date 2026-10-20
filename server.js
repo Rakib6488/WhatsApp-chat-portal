@@ -19,7 +19,22 @@ let initializePromise = null;
 let reconnectTimer = null;
 let reconnectAfterInitialization = false;
 
-const client = new Client({
+class StableClient extends Client {
+  async inject() {
+    if (this.pupPage) {
+      await this.pupPage.waitForFunction(() => {
+        try {
+          return Boolean(window.require?.('WAWebSocketModel')?.Socket);
+        } catch {
+          return false;
+        }
+      }, { timeout: 60000 });
+    }
+    return super.inject();
+  }
+}
+
+const client = new StableClient({
   authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
   puppeteer: {
     executablePath: puppeteer.executablePath(),
