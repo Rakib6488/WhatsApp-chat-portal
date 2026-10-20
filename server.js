@@ -1,5 +1,6 @@
 // WhatsApp bridge: QR login + forward messages to Apps Script (Google Sheet)
 const { Client, LocalAuth } = require('whatsapp-web.js');
+const puppeteer = require('puppeteer');
 const QRCode = require('qrcode');
 const express = require('express');
 const axios = require('axios');
@@ -18,6 +19,7 @@ let state = { status: 'starting', qr: null };
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
   puppeteer: {
+    executablePath: puppeteer.executablePath(),
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
   },
