@@ -22,6 +22,7 @@ let reconnectDelay = 5000;
 
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
+  userAgent: false,
   puppeteer: {
     executablePath: puppeteer.executablePath(),
     headless: true,
