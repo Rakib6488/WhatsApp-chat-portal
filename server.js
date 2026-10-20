@@ -18,25 +18,10 @@ let state = { status: 'starting', qr: null };
 let initializePromise = null;
 let reconnectTimer = null;
 let reconnectAfterInitialization = false;
+let reconnectDelay = 5000;
 
-class StableClient extends Client {
-  async inject() {
-    if (this.pupPage) {
-      await this.pupPage.waitForFunction(() => {
-        try {
-          return Boolean(window.require?.('WAWebSocketModel')?.Socket);
-        } catch {
-          return false;
-        }
-      }, { timeout: 60000 });
-    }
-    return super.inject();
-  }
-}
-
-const client = new StableClient({
+const client = new Client({
   authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
-  userAgent: false,
   puppeteer: {
     executablePath: puppeteer.executablePath(),
     headless: true,
@@ -52,7 +37,7 @@ const client = new StableClient({
   },
 });
 
-function scheduleReconnect(delay = 3000) {
+function scheduleReconnect(delay = reconnectDelay) {
   if (reconnectTimer) return;
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
@@ -75,7 +60,8 @@ function initializeClient() {
       } catch (cleanupError) {
         console.error('WhatsApp cleanup failed:', cleanupError);
       }
-      scheduleReconnect(5000);
+      scheduleReconnect(reconnectDelay);
+      reconnectDelay = Math.min(reconnectDelay * 2, 60000);
     })
     .finally(() => {
       initializePromise = null;
@@ -96,6 +82,7 @@ client.on('auth_failure', (m) => { console.error('auth_failure', m); state = { s
 client.on('ready', () => {
   if (reconnectTimer) clearTimeout(reconnectTimer);
   reconnectTimer = null;
+  reconnectDelay = 5000;
   state = { status: 'ready', qr: null };
   console.log('WhatsApp ready');
 });
