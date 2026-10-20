@@ -131,7 +131,9 @@ app.get('/status', (req, res) => res.json(state));
 app.post('/send', async (req, res) => {
   try {
     const { to, text } = req.body || {};
-    if (!to || !text) return res.status(400).json({ error: 'to ar text lagbe' });
+    if (typeof to !== 'string' || !to.trim() || typeof text !== 'string' || !text.trim()) {
+      return res.status(400).json({ error: 'to and text must be non-empty strings' });
+    }
     if (state.status !== 'ready') return res.status(503).json({ error: 'WhatsApp connected na' });
     const m = await client.sendMessage(to, text);
     res.json({ ok: true, id: m.id._serialized });
@@ -143,7 +145,10 @@ app.post('/send', async (req, res) => {
 app.post('/logout', async (req, res) => {
   try {
     await client.logout();
-  } catch (e) { /* ignore */ }
+  } catch (error) {
+    console.error('WhatsApp logout failed:', error);
+    return res.status(500).json({ error: 'WhatsApp logout failed' });
+  }
   state = { status: 'starting', qr: null };
   scheduleReconnect(2000);
   res.json({ ok: true });
