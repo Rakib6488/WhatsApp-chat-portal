@@ -15,6 +15,9 @@ if (!BRIDGE_KEY || !GAS_URL) {
 }
 
 let state = { status: 'starting', qr: null };
+let initializePromise = null;
+let reconnectTimer = null;
+let reconnectAfterInitialization = false;
 
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
@@ -25,16 +28,57 @@ const client = new Client({
   },
 });
 
+function scheduleReconnect(delay = 3000) {
+  if (reconnectTimer) return;
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    initializeClient();
+  }, delay);
+}
+
+function initializeClient() {
+  if (initializePromise) {
+    reconnectAfterInitialization = true;
+    return initializePromise;
+  }
+
+  initializePromise = client.initialize()
+    .catch(async (error) => {
+      console.error('WhatsApp initialization failed:', error);
+      state = { status: 'disconnected', qr: null };
+      try {
+        await client.destroy();
+      } catch (cleanupError) {
+        console.error('WhatsApp cleanup failed:', cleanupError);
+      }
+      scheduleReconnect(5000);
+    })
+    .finally(() => {
+      initializePromise = null;
+      if (reconnectAfterInitialization && state.status === 'disconnected') {
+        scheduleReconnect(1000);
+      }
+      reconnectAfterInitialization = false;
+    });
+
+  return initializePromise;
+}
+
 client.on('qr', async (qr) => {
   state = { status: 'qr', qr: await QRCode.toDataURL(qr, { margin: 1, width: 300 }) };
 });
 client.on('authenticated', () => { state = { status: 'authenticating', qr: null }; });
 client.on('auth_failure', (m) => { console.error('auth_failure', m); state = { status: 'disconnected', qr: null }; });
-client.on('ready', () => { state = { status: 'ready', qr: null }; console.log('WhatsApp ready'); });
+client.on('ready', () => {
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  reconnectTimer = null;
+  state = { status: 'ready', qr: null };
+  console.log('WhatsApp ready');
+});
 client.on('disconnected', (reason) => {
   console.log('disconnected', reason);
   state = { status: 'disconnected', qr: null };
-  setTimeout(() => client.initialize().catch(console.error), 3000);
+  scheduleReconnect();
 });
 
 // Fires for both incoming and outgoing messages
@@ -93,9 +137,9 @@ app.post('/logout', async (req, res) => {
     await client.logout();
   } catch (e) { /* ignore */ }
   state = { status: 'starting', qr: null };
-  setTimeout(() => client.initialize().catch(console.error), 2000);
+  scheduleReconnect(2000);
   res.json({ ok: true });
 });
 
 app.listen(PORT, () => console.log('Bridge listening on', PORT));
-client.initialize().catch(console.error);
+initializeClient();
